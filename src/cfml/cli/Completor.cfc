@@ -24,9 +24,9 @@ component output="false" persistent="false" {
 	 * @cursor.hint cursor position
 	 * @candidates.hint tree to populate with completion candidates
  	 **/
-	function complete(co)  {
+	function complete(String buffer, numeric cursor, candidates)  {
 		try {
-			_complete(co);
+			return _complete(buffer, cursor, candidates);
 		} catch (any e) {
 			shell.printError(e);
 		}
@@ -38,23 +38,8 @@ component output="false" persistent="false" {
 	 * @cursor.hint cursor position
 	 * @candidates.hint tree to populate with completion candidates
  	 **/
-	function getFormattedCompletionCandidates()  {
-		try {
-			_complete(co);
-		} catch (any e) {
-			shell.printError(e);
-		}
-	}
-
-	/**
-	 * populate completion candidates and return cursor position
-	 * @buffer.hint text so far
-	 * @cursor.hint cursor position
-	 * @candidates.hint tree to populate with completion candidates
- 	 **/
-	function _complete(co)  {
-		candidates = createObject("java","java.util.ArrayList");
-		var start = isNull(co.getBuffer()) ? "" : shell.unansi(co.getBuffer());
+	function _complete(String buffer, numeric cursor, candidates)  {
+		var start = isNull(buffer) ? "" : buffer;
 		var parsed = commandHandler.getParser().parse(start.replace(shell.unansi(shell.getPrompt()),""));
 		var commandLine = parsed.tree;
 		var prefix = isNull(commandLine.namespace()) ? "" : commandLine.namespace().getText();
@@ -88,14 +73,17 @@ component output="false" persistent="false" {
 	            	}
 				}
 			}
+			startIndex = len(start) - len(typedSoFar);
 		} else if(command != "" && args.size() == 0 && lastArg == "") {
 			if(!start.endsWith(" ")) {
             	candidates.add(command);
 			} else {
+				partialCompletion=true;
 				for(var param in commands[prefix][command].parameters) {
 	            	candidates.add(param.name & "=");
 				}
 			}
+			startIndex = len(start);
 		} else if(command != "" && (args.size() > 0 || lastArg != "")) {
 			parameters = commands[prefix][command].parameters;
 			for(var param in parameters) {
@@ -104,28 +92,28 @@ component output="false" persistent="false" {
 					var paramSoFar = listRest(lastArg,"=");
 					paramSoFar = paramSoFar.equals("<EOF>") ? "" : paramSoFar;
 					paramValueCompletion(param.name, paramType, paramSoFar, candidates);
+					startIndex = len(start);
 				} else {
 		            if (param.name.startsWith(lastArg) || start.endsWith(" ")) {
+						partialCompletion=true;
 		            	if(!findNoCase(param.name&"=", start)) {
 		            		candidates.add(param.name & "=");
+		            	}
+		            	if(param.name.startsWith(lastArg)) {
+							startIndex = len(start) - len(lastArg);
+		            	} else {
+							startIndex = len(start);
 		            	}
 		            }
 				}
 			}
 		}
         if (candidates.size() == 1 && !partialCompletion) {
-        	can = isArgument ? candidates.get(0) & "=" : candidates.get(0) & " ";
+        	can = isArgument ? candidates.first() & "=" : candidates.first() & " ";
         	candidates.clear();
         	candidates.add(can);
-        	shell.print(can);
+        	return startIndex;
         }
-/*
-		shell.println("");
-		shell.println(start);
-		shell.println(candidates);
-*/
-        co.setCompletionCandidates(candidates);
-        return;
         return (candidates.size() == 0) ? (-1) : startIndex;
 	}
 

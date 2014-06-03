@@ -1,42 +1,36 @@
 <project name="distro.build" default="build" basedir="./" xmlns:antcontrib="antlib:net.sf.antcontrib">
 
-	<loadproperties srcfile="build.properties"/>
-	<import file="${cfdistro.build.file}"/>
-	<import file="build-cli.xml"/>
-        <property name="maven.repo.local" value="${cfdistro.basedir}/artifacts"/>
-        <property name="rpm.repo" value="${maven.repo.local}/RPMS/noarch"/>
+	<loadproperties srcfile="build.properties" />
+	<import file="${cfdistro.build.file}" />
+	<import file="build-cli.xml" />
+	<property name="maven.repo.local" value="${cfdistro.basedir}/artifacts" />
+	<property name="rpm.repo" value="${maven.repo.local}/RPMS/noarch" />
 
 	<target name="build" depends="build.cli">
 	</target>
-	
-	<target name="build.testwar" depends="cfdistro.build">
-		<dependency groupId="org.mxunit" artifactId="core" version="${mxunit.version}" mapping="/mxunit" />
- 		<mvn-repo id="jboss.repo" url="http://repository.jboss.org/nexus/content/repositories/releases" />
-		<!-- 
-		<dependency groupId="org.jboss.aesh" artifactId="aesh" unzip="false" version="0.53" type="jar" dest="${lib.dir}" repoId="jboss.repo" />
-		 -->
-		<dependency groupId="org.fusesource.jansi" artifactId="jansi" unzip="false" version="1.11" type="jar" dest="${lib.dir}" />
-		<dependency groupId="org.jboss.jreadline" artifactId="jreadline"
-			unzip="false" version="0.20" type="jar" dest="${lib.dir}" repoId="jboss.repo">
-			<exclusions>
-				<exclusion groupId="org.fusesource.jansi" artifactId="jansi" />
-			</exclusions>
-		</dependency>
+
+	<target name="build.testwar" depends="resolve.libs, cfdistro.build">
+		<dependency groupId="org.mxunit" artifactId="core"
+			version="${mxunit.version}" mapping="/mxunit" />
 		<mapping virtual="/cfml" physical="@src.dir@/cfml" />
 		<mapping virtual="/tests" physical="@src.dir@/../tests" />
 	</target>
 
-      <target name="test">
-	      <server-run>
-	          <mxunit-rundirs basePath="${tests.dir}" baseComponentPath="tests" outputdir="${dist.dir}/testresults/" failonerror="true"/>
-	      </server-run>
-      </target>
+	<target name="test">
+		<server-run>
+			<mxunit-rundirs basePath="${tests.dir}"
+				baseComponentPath="tests" outputdir="${dist.dir}/testresults/"
+				failonerror="true" />
+		</server-run>
+	</target>
 
-      <target name="build.test" depends="build.testwar">
-	      <server-run>
-	          <mxunit-rundirs basePath="${tests.dir}" baseComponentPath="tests" outputdir="${dist.dir}/testresults/" failonerror="true" />
-	      </server-run>
-      </target>
+	<target name="build.test" depends="build.testwar">
+		<server-run>
+			<mxunit-rundirs basePath="${tests.dir}"
+				baseComponentPath="tests" outputdir="${dist.dir}/testresults/"
+				failonerror="true" />
+		</server-run>
+	</target>
 
 
 </project>

@@ -4,8 +4,6 @@
 component output="false" {
 
 	System = createObject("java", "java.lang.System");
-	ANSIBuffer = createObject("java", "org.jboss.jreadline.console.Buffer");
-	ANSICodes = createObject("java", "org.jboss.jreadline.util.ANSI");
     StringEscapeUtils = createObject("java","org.apache.commons.lang.StringEscapeUtils");
 	keepRunning = true;
     reloadshell = false;
@@ -13,14 +11,24 @@ component output="false" {
 	lastline="";
 	initialDirectory = System.getProperty("user.dir");
 	pwd = initialDirectory;
-	cr = chr(10);
+	cr = System.getProperty("line.separator");
 
 	/**
 	 * constructor
 	 * @inStram.hint input stream if running externally
 	 * @printWriter.hint output if running externally
 	 **/
-	function init(inStream, outputStream) output="false" {
+	function init(inStream, printWriter) {
+		if(isNull(printWriter)) {
+			//new PrintWriter(OutputStreamWriter(System.out,System.getProperty("jline.WindowsTerminal.output.encoding",System.getProperty("file.encoding"))));
+	    	reader = createObject("java","jline.console.ConsoleReader").init();
+		} else {
+			if(isNull(arguments.inStream)) {
+		    	var FileDescriptor = createObject("java","java.io.FileDescriptor").init();
+		    	inStream = createObject("java","java.io.FileInputStream").init(FileDescriptor.in);
+			}
+	    	reader = createObject("java","jline.console.ConsoleReader").init(inStream,printWriter);
+		}
     	variables.homedir = env("user.home") & "/.railo";
     	variables.tempdir = variables.homedir & "/temp";
     	variables.profiledir = variables.homedir & "/profile";
@@ -28,93 +36,13 @@ component output="false" {
 		if(!directoryExists(profiledir)) {
 			directoryCreate(profiledir,true);
 		}
-	    settings = createObject("java","org.jboss.jreadline.console.settings.Settings").getInstance();
-		if(!isNull(outputStream)) {
-	        settings.setStdOut(outputStream);
-		}
-		if(!isNull(arguments.inStream)) {
-	        settings.setInputStream(inStream);
-	        settings.setReadAhead(true);
-	        variables.hasInput = true;
-		}
-		reader = newConsole();
 		variables.shellPrompt = ansi("yellow","cfml> ");
 		variables.commandHandler = new CommandHandler(this);
+		var historyFile = createObject("java", "java.io.File").init(homedir&"/.history");
+		var history = createObject("java", "jline.console.history.FileHistory").init(historyFile);
+		reader.setHistory(history);
     	return this;
 	}
-
-	function newConsole() output="false" {
-	    var Mode = createObject("java","org.jboss.jreadline.edit.Mode");
-		var historyFile = createObject("java", "java.io.File").init(getHomeDir()&"/.history");
-        settings.setReadInputrc(false);
-        settings.setEditMode(Mode.EMACS);
-        settings.resetEditMode();
-        settings.setReadAhead(false);
-		settings.setHistoryFile(historyFile);
-    	var console = createObject("java","org.jboss.jreadline.console.Console").init(settings);
-    	return console;
-	}
-
-	/**
-	 * runs the shell thread until exit flag is set
-	 * @input.hint command line to run if running externally
-  	 **/
-    function run() output="false" {
-        var mask = "*";
-        var trigger = "su";
-        reloadshell = false;
-		try{
-	        var line = "";
-	        keepRunning = true;
-			// set and recreate temp dir
-			setTempDir(variables.tempdir);
-	        while (keepRunning) {
-				try {
-			        if (variables.hasInput) {
-			        	line = reader.read(javaCast("null",""));
-		        		keepRunning = false;
-		        		continue;
-			        } else {
-			        	line = reader.read(shellPrompt);
-			        }
-		        	if(isNull(line)) {
-		        		keepRunning = false;
-		        		continue;
-		        	}
-		        	line = line.getBuffer();
-		        	variables.lastline=line;
-				} catch (any er) {
-					printError(er);
-					// reload();
-					continue;
-				}
-				if(trim(line) == "reload") {
-					reload();
-					continue;
-				}
-	            //reader.pushToStdOut("======>" & line);
-	            // If we input the special word then we will mask
-	            // the next line.
-	            if ((!isNull(trigger)) && (line.compareTo(trigger) == 0)) {
-	                line = reader.read("password> ", javacast("char",mask));
-	            }
-				var args = rematch("'.*?'|"".*?""|\S+",line);
-				if(args.size() == 0 || len(trim(line))==0) continue;
-				try{
-					runCommandLine(line);
-					reader.pushToStdOut(cr);
-				} catch (any e) { printError(e); }
-	        }
-
-		} catch (any e) {
-			printError(e);
-		}
-		if(!reloadshell) {
-
-		}
-		reader.stop();
-		return reloadshell;
-    }
 
 	/**
 	 * Run CommandLine
@@ -157,7 +85,7 @@ component output="false" {
  	 **/
 	function reload(Boolean clear=true) {
 		if(clear) {
-			reader.clear();
+			reader.clearScreen();
 		}
 		reloadshell = true;
     	keepRunning = false;
@@ -180,6 +108,7 @@ component output="false" {
 		} else {
 			variables.shellPrompt = text;
 		}
+		reader.setPrompt(variables.shellPrompt);
 		return "set prompt";
 	}
 
@@ -197,10 +126,11 @@ component output="false" {
 	function ask(message) {
 		var input = "";
 		try {
-			input = reader.read(message).getBuffer().toString();
+			input = reader.readLine(message);
 		} catch (any e) {
 			printError(e);
 		}
+		reader.setPrompt(variables.shellPrompt);
 		return input;
 	}
 
@@ -208,7 +138,7 @@ component output="false" {
 	 * clears the console
  	 **/
 	function clearScreen() {
-		reader.clear();
+		reader.clearScreen();
 	}
 
 	/**
@@ -348,21 +278,21 @@ component output="false" {
   	 **/
 	function ansi(required attribute, required string) {
 		var textAttributes =
-		{"off":ANSICodes.reset(),
-		 "none":ANSICodes.reset(),
-		 "bold":ANSICodes.BOLD,
+		{"off":0,
+		 "none":0,
+		 "bold":1,
 		 "underscore":4,
 		 "blink":5,
 		 "reverse":7,
 		 "concealed":8,
-		 "black":ANSICodes.blackText(),
-		 "red":ANSICodes.redText(),
-		 "green":ANSICodes.greenText(),
-		 "yellow":ANSICodes.yellowText(),
-		 "blue":ANSICodes.blueText(),
-		 "magenta":ANSICodes.magentaText(),
-		 "cyan":ANSICodes.cyanText(),
-		 "white":ANSICodes.whiteText(),
+		 "black":30,
+		 "red":31,
+		 "green":32,
+		 "yellow":33,
+		 "blue":34,
+		 "magenta":35,
+		 "cyan":36,
+		 "white":37,
 		 "black_back":40,
 		 "red_back":41,
 		 "green_back":42,
@@ -374,9 +304,9 @@ component output="false" {
 		}
 		var ansiString = "";
 		for(var attrib in listToArray(attribute)) {
-			ansiString &= textAttributes[attrib];
+			ansiString &= chr(27) & "[" & textAttributes[attrib] & "m";
 		}
-		ansiString &= string & textAttributes["off"];
+		ansiString &= string & chr(27) & "[" & textAttributes["off"] & "m";
     	return ansiString;
 	}
 
@@ -398,11 +328,11 @@ component output="false" {
 	function print(required string) {
 		if(!isSimpleValue(string)) {
 			if(isArray(string)) {
-				// return reader.printColumns(string);
+				return reader.printColumns(string);
 			}
 			string = formatJson(serializeJSON(string));
 		}
-    	return reader.pushToStdOut(string);
+    	return reader.print(string);
 	}
 
 	/**
@@ -448,6 +378,69 @@ component output="false" {
 	}
 
 	/**
+	 * runs the shell thread until exit flag is set
+	 * @input.hint command line to run if running externally
+  	 **/
+    function run(input="") {
+        var mask = "*";
+        var trigger = "su";
+        reloadshell = false;
+
+		try{
+	        if (input != "") {
+	        	input &= chr(10);
+	        	var inStream = createObject("java","java.io.ByteArrayInputStream").init(input.getBytes());
+	        	reader.setInput(inStream);
+	        }
+	        reader.setBellEnabled(false);
+	        //reader.setDebug(new PrintWriter(new FileWriter("writer.debug", true)));
+
+	        var line ="";
+	        keepRunning = true;
+			reader.setPrompt(shellPrompt);
+			// set and recreate temp dir
+			setTempDir(variables.tempdir);
+	        while (keepRunning) {
+				if(input != "") {
+					keepRunning = false;
+				}
+				reader.println();
+				try {
+		        	line = reader.readLine();
+		        	variables.lastline=line;
+				} catch (any er) {
+					printError(er);
+					// reload();
+					continue;
+				}
+				if(trim(line) == "reload") {
+					reload();
+					continue;
+				}
+	            //reader.print("======>" & line);
+	            // If we input the special word then we will mask
+	            // the next line.
+	            if ((!isNull(trigger)) && (line.compareTo(trigger) == 0)) {
+	                line = reader.readLine("password> ", javacast("char",mask));
+	            }
+				var args = rematch("'.*?'|"".*?""|\S+",line);
+				if(args.size() == 0 || len(trim(line))==0) continue;
+				try{
+					runCommandLine(line);
+				} catch (any e) { printError(e); }
+	        }
+
+		} catch (any e) {
+			printError(e);
+		}
+		if(!reloadshell) {
+
+		}
+		return reloadshell;
+    }
+
+
+	/**
 	 * display help information
 	 * @namespace.hint namespace (or namespaceless command) to get help for
  	 * @command.hint command to get help for
@@ -473,33 +466,31 @@ component output="false" {
 	function printError(required err, fatal=false) {
 //		filewrite("/tmp/fart.txt",formatJSON(serializeJSON(err)));
 		if(fatal) keepRunning = false;
-		reader.pushToStdOut(ansi("red","ERROR: ") & HTML2ANSI(err.message));
+		reader.print(ansi("red","ERROR: ") & HTML2ANSI(err.message));
 		if (err.type == "command.exception" ) {
 			if(structKeyExists(err,"extendedInfo") && err.extendedInfo != "") {
 				var column = val(listLast(err.extendedInfo,":"))+1;
-				reader.pushToStdOut(cr);
-				reader.pushToStdOut(variables.lastline);
-				reader.pushToStdOut(cr);
-				reader.pushToStdOut(createObject("java","java.util.Formatter").format("%1$" & column & "s",["^"]));
+				reader.println();
+				reader.println(variables.lastline);
+				reader.print(createObject("java","java.util.Formatter").format("%1$" & column & "s",["^"]));
 			}
 		} else if (structKeyExists( err, 'tagcontext' )) {
-			reader.pushToStdOut(cr);
-			reader.pushToStdOut(ansi("red"," #err.type# error in: "));
+			reader.println();
+			reader.print(ansi("red"," #err.type# error in: "));
 			var lines=arrayLen( err.tagcontext );
 			if (lines != 0) {
 				for(idx=1; idx<=lines; idx++) {
 					tc = err.tagcontext[ idx ];
 					if (len( tc.codeprinthtml )) {
 						isFirst = ( idx == 1 );
-						isFirst ? reader.pushToStdOut(ansi("red","#tc.template#: line #tc.line#")) : reader.pushToStdOut(ansi("magenta","#ansi('bold','called from ')# #tc.template#: line #tc.line#"));
-						reader.pushToStdOut(cr);;
-						reader.pushToStdOut(ansi("blue",HTML2ANSI(tc.codeprinthtml)));
+						isFirst ? reader.print(ansi("red","#tc.template#: line #tc.line#")) : reader.print(ansi("magenta","#ansi('bold','called from ')# #tc.template#: line #tc.line#"));
+						reader.println();
+						reader.print(ansi("blue",HTML2ANSI(tc.codeprinthtml)));
 					}
 				}
 			}
 		}
-		reader.pushToStdOut(ansi("off",""));
-		reader.pushToStdOut(cr);
+		reader.println();
 	}
 
 }

@@ -26,8 +26,8 @@ component output="false" persistent="false" {
 		initCommands();
 		commandGrammar = new commandgrammar.CommandGrammar();
 		commandGrammar.setCommands(getCommands());
-		var completor = createDynamicProxy(new Completor(this), ["org.jboss.jreadline.complete.Completion"]);
-        reader.addCompletion(completor);
+		var completor = createDynamicProxy(new Completor(this), ["jline.console.completer.Completer"]);
+        reader.addCompleter(completor);
 		return this;
 	}
 

@@ -15,7 +15,7 @@ component name="TestShell" extends="mxunit.framework.TestCase" {
 	public void function testShell()  {
     	var baos = createObject("java","java.io.ByteArrayOutputStream").init();
     	var n = chr(10);
-    	var line = "ls" &n& "quite" & n;
+    	var line = "ls" &n& "exit" & n;
     	var inStream = createObject("java","java.io.ByteArrayInputStream").init(line.getBytes());
 		var shell = new cfml.cli.Shell(inStream,baos);
 		shell.run();
