@@ -189,9 +189,10 @@ public class LoaderCLIMain {
         if(!startServer && !stopServer) {
         	System.setIn(new NonClosingInputStream(System.in));
     		final String SHELL_CFM = props.getProperty("shell") != null ? props.getProperty("shell") : "/cfml/cli/shell.cfm";
-    		String uri = cli_home + SHELL_CFM;
+    		String uri = cli_home.getCanonicalPath() + SHELL_CFM;
         	if(debug) System.out.println("Running in CLI mode");
         	if(argList.size() > 1 && argList.contains("execute")) {
+        		// bypass the shell for running pure CFML files
         		int executeIndex = argList.indexOf("execute");
         		File cfmlFile = new File(argList.get(executeIndex+1));
         		if(cfmlFile.exists()) {
@@ -200,13 +201,25 @@ public class LoaderCLIMain {
         		argList.remove(executeIndex+1);
         		argList.remove(executeIndex);        		
         		if(debug) System.out.println("Executing: "+uri);
+        	} else if(argList.size() > 0 && new File(argList.get(0)).exists()) {
+        		String filename = argList.get(0);
+        		// this will force the shell to run the execute command
+        		if(filename.matches("/.rs*?$") || filename.matches("/.box*$")) {
+        			argList.add(0, "execute");
+        		} else {
+            		File cfmlFile = new File(filename);
+            		if(cfmlFile.exists()) {
+            			uri = cfmlFile.getCanonicalPath();
+            		}
+        		}
         	}
+
     		System.setProperty("cfml.cli.arguments",arrayToList(argList.toArray(new String[argList.size()])," "));
             Class<?> cli;
 	        cli = cl.loadClass("railocli.CLIMain");
 	        Method run = cli.getMethod("run",new Class[]{File.class,File.class,File.class,String.class,boolean.class});
 			try{
-				File webroot=new File("/").getCanonicalFile();
+				File webroot=new File(getPathRoot(uri)).getCanonicalFile();
 	        	run.invoke(null, webroot,configServerDir,configWebDir,uri,debug);
 			} catch (Exception e) {
 				exitCode = 1;
@@ -399,6 +412,10 @@ public class LoaderCLIMain {
 			config.put(key.toLowerCase(), value);
 		}
 		return config;
+	}
+
+	public static String getPathRoot(String string) {
+		return string.replaceAll("^([^\\\\//]*?[\\\\//]).*?$", "$1");
 	}
 
 }

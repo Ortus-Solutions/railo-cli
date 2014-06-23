@@ -5,6 +5,7 @@
 	<import file="build-cli.xml" />
 	<property name="maven.repo.local" value="${cfdistro.basedir}/artifacts" />
 	<property name="rpm.repo" value="${maven.repo.local}/RPMS/noarch" />
+	<property name="dep.repo" value="${maven.repo.local}/debs/noarch" />
 
 	<target name="build" depends="build.cli">
 	</target>
