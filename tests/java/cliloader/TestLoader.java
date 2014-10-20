@@ -24,13 +24,17 @@ public class TestLoader {
 	@SuppressWarnings("static-access")
 	@Test
 	public final void testGetPathRoot() {
-		String root = cliLoader.getPathRoot("C:\\Users\\someone\\home");
-		assertTrue(root.equals("C:\\"));
+		String root = cliLoader.getPathRoot("D:\\Users\\someone\\home");
+		assertTrue(root.equals("D:\\"));
 		root = cliLoader.getPathRoot("C:/Users/someone/home");
 		assertTrue(root.equals("C:/"));
-		root = cliLoader.getPathRoot("C:/Users/someone/home");
-		assertTrue(root.equals("C:/"));
+		root = cliLoader.getPathRoot("D:/Users/someone/home");
+		assertTrue(root.equals("D:/"));
+		root = cliLoader.getPathRoot("D:\\Users\\someone\\home");
+		assertTrue(root.equals("D:\\"));
 		root = cliLoader.getPathRoot("/wee/hoo");
+		assertTrue(root.equals("/"));
+		root = cliLoader.getPathRoot("/");
 		assertTrue(root.equals("/"));
 	}
 

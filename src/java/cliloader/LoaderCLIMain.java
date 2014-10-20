@@ -1,16 +1,25 @@
 package cliloader;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.BufferedInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.FilenameFilter;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -37,6 +46,7 @@ public class LoaderCLIMain {
 
 	private static String LIB_ZIP_PATH = "libs.zip";
 	private static String CFML_ZIP_PATH = "cfml.zip";
+	private static String ENGINECONF_ZIP_PATH = "engine.zip";
 	private static ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 	private static Boolean debug = false;
 	private static int exitCode = 0;
@@ -149,6 +159,7 @@ public class LoaderCLIMain {
 			System.out.println("Initializing libraries -- this will only happen once, and takes a few seconds...");
 			Util.unzipInteralZip(classLoader, LIB_ZIP_PATH, libDir, debug);
 			Util.unzipInteralZip(classLoader, CFML_ZIP_PATH, new File(cli_home.getPath()+"/cfml"), debug);
+			Util.unzipInteralZip(classLoader, ENGINECONF_ZIP_PATH, new File(cli_home.getPath()+"/engine"), debug);
 			Util.copyInternalFile(classLoader, "resource/trayicon.png", new File(libDir,"trayicon.png"));
 			System.out.println("");
 			System.out.println("Libraries initialized");
@@ -178,12 +189,9 @@ public class LoaderCLIMain {
         PrintStream originalOut = System.out;
 //    	Thread shutdownHook = new Thread( "cli-shutdown-hook" ) { public void run() { cl.close(); } };
 //      Runtime.getRuntime().addShutdownHook( shutdownHook );	
-		File configServerDir=new File(libDir.getParentFile(),"server");
-		File configWebDir=new File(libDir.getParentFile(),"server/railo-web");
+		File configServerDir=new File(libDir.getParentFile(),"engine/railo/");
+		File configWebDir=new File(libDir.getParentFile(),"engine/railo/railo-web");
 		System.setProperty("cfml.cli.home", cli_home.getAbsolutePath());
-		System.setProperty("railo.server.config.dir", configServerDir.getAbsolutePath());
-		System.setProperty("railo.web.config.dir", configWebDir.getAbsolutePath());
-//		System.setProperty("cfml.server.trayicon", thisJar.getAbsolutePath() + "!/resource/trayicon.png");
 		System.setProperty("cfml.server.trayicon", libDir.getAbsolutePath() + "/trayicon.png");
 		System.setProperty("cfml.server.dockicon", "");
         if(!startServer && !stopServer) {
@@ -195,20 +203,23 @@ public class LoaderCLIMain {
         		// bypass the shell for running pure CFML files
         		int executeIndex = argList.indexOf("execute");
         		File cfmlFile = new File(argList.get(executeIndex+1));
-        		if(cfmlFile.exists()) {
-        			uri = cfmlFile.getCanonicalPath();
-        		}
-        		argList.remove(executeIndex+1);
-        		argList.remove(executeIndex);        		
-        		if(debug) System.out.println("Executing: "+uri);
+        		String filename = cfmlFile.getCanonicalPath();
+    		    if(cfmlFile.exists()) {
+    		        uri = cfmlFile.getCanonicalPath();
+    		    }
+    		    argList.remove(executeIndex+1);
+    		    argList.remove(executeIndex);
+    		    if(debug) System.out.println("Executing: "+uri);
         	} else if(argList.size() > 0 && new File(argList.get(0)).exists()) {
         		String filename = argList.get(0);
         		// this will force the shell to run the execute command
-        		if(filename.matches("/.rs*?$") || filename.matches("/.box*$")) {
-        			argList.add(0, "execute");
+                if(filename.endsWith(".rs") || filename.endsWith(".boxr")) {
+                    if(debug) System.out.println("Executing batch file: "+filename);
+        			argList.add(0, "recipe");
         		} else {
             		File cfmlFile = new File(filename);
             		if(cfmlFile.exists()) {
+            		    if(debug) System.out.println("Executing file: "+filename);
             			uri = cfmlFile.getCanonicalPath();
             		}
         		}
@@ -218,6 +229,24 @@ public class LoaderCLIMain {
             Class<?> cli;
 	        cli = cl.loadClass("railocli.CLIMain");
 	        Method run = cli.getMethod("run",new Class[]{File.class,File.class,File.class,String.class,boolean.class});
+
+	        // handle bash script
+			FileReader namereader = new FileReader(new File(uri));
+			BufferedReader in = new BufferedReader(namereader);
+			String line = in.readLine();
+			if(line != null && line.startsWith("#!")) {
+				File tmpfile = new File(uri+".tmp");
+				tmpfile.deleteOnExit();
+				PrintWriter writer = new PrintWriter(tmpfile);
+				while ((line = in.readLine()) != null) {
+					//writer.println(line.replaceAll(oldstring,newstring));
+					writer.println(line);
+				}
+				uri += ".tmp";
+				writer.close();
+			}
+			in.close();
+
 			try{
 				File webroot=new File(getPathRoot(uri)).getCanonicalFile();
 	        	run.invoke(null, webroot,configServerDir,configWebDir,uri,debug);
@@ -270,6 +299,8 @@ public class LoaderCLIMain {
     		if(background) {
     			argstr= new String[] {
     					"-war",webRoot.getPath(),
+    					"--railoserver",configServerDir.getAbsolutePath(),
+    					"--railoweb",configWebDir.getAbsolutePath(),
     					"--background","true",
     					"--iconpath",libDir.getAbsolutePath() + "/trayicon.png",
     					"--libdir",libDir.getPath(),
@@ -278,6 +309,8 @@ public class LoaderCLIMain {
     		} else {
     			argstr= new String[] {
     					"-war",webRoot.getPath(),
+    					"--railoserver",configServerDir.getAbsolutePath(),
+    					"--railoweb",configWebDir.getAbsolutePath(),
     					"--iconpath",libDir.getAbsolutePath() + "/trayicon.png",
     					"--background","false",
     					"--processname",name

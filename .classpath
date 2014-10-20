@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src/java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/jline-2.12.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Railo-Loader"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/runwar"/>
+	<classpathentry kind="lib" path="/runwar/lib/jboss-logging-3.1.4.GA.jar"/>
+	<classpathentry kind="lib" path="/runwar/lib/jboss-servlet-api_3.1_spec-1.0.0.Final.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Railo-Core"/>
+	<classpathentry kind="lib" path="/runwar/lib/jboss-jsp-api_2.3_spec-1.0.0.Beta1.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

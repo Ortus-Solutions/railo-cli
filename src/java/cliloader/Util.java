@@ -2,6 +2,8 @@ package cliloader;
 
 import java.io.*;
 import java.net.URL;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.jar.*;
@@ -127,4 +129,17 @@ public class Util {
 		return answer;
 	}
 
+	public static void copyFile(File source, File dest) throws IOException {
+	  FileInputStream fi = new FileInputStream(source);
+	  FileChannel fic = fi.getChannel();
+	  MappedByteBuffer mbuf = fic.map(
+	    FileChannel.MapMode.READ_ONLY, 0, source.length());
+	  fic.close();
+	  fi.close();
+	  FileOutputStream fo = new FileOutputStream(dest);
+	  FileChannel foc = fo.getChannel();
+	  foc.write(mbuf);
+	  foc.close();
+	  fo.close();
+	}
 }

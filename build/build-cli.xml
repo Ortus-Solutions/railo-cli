@@ -13,7 +13,7 @@
 		</dependency>
 		<dependency groupId="org.fusesource.jansi" artifactId="jansi" unzip="false" version="1.11" type="jar" dest="${lib.dir}" />
 		 -->
-		<dependency groupId="jline" artifactId="jline" version="2.12-SNAPSHOT" dest="${lib.dir}" type="jar" unzip="false"/>
+		<dependency groupId="jline" artifactId="jline" version="2.12" dest="${lib.dir}" type="jar" unzip="false"/>
 	</target>
 
 	<target name="build.cli" description="creates an jar with the libs cli" depends="resolve.libs">
@@ -46,10 +46,26 @@
         <copy todir="${railo.lib.dir}">
         	<fileset dir="${lib.dir}" includes="*.jar" />
     	</copy>
-        <copy todir="${temp.dir}/cli/bin/resource">
+
+		<mkdir dir="${temp.dir}/engine" />
+		<configure-railo-web 
+			config-server="${temp.dir}/engine/railo/railo-server/context/railo-server.xml"
+			config-web="${temp.dir}/engine/railo/railo-web/railo-web.xml.cfm"
+			dump-cfc="${temp.dir}/engine/railo/railo-server/context/library/tag/Dump.cfc"/>
+		<copy file="${src.dir}/resources/error-cli.cfm" todir="${temp.dir}/engine/railo/railo-web/context/templates/error/" />
+<!-- 
+ 		<replace file="${temp.dir}/engine/railo/railo-server/context/library/tag/Dump.cfc" token="modern&quot;;" value="text&quot;;"/>
+ -->
+		<antcontrib:var name="railo.config.file" value="${temp.dir}/engine/railo/railo-web/railo-web.xml.cfm" />
+		<railo-error-template path="error-cli.cfm" />
+		<copy todir="${temp.dir}/cli/bin/resource">
         	<fileset dir="${src.dir}/resources"/>
     	</copy>
-       	<!-- we put the loader into a jar and then into libs.zip for classloading reasons -->
+		<zip destfile="${temp.dir}/cli/engine.zip">
+        	<fileset dir="${temp.dir}/engine"/>
+    	</zip>
+
+		<!-- we put the loader into a jar and then into libs.zip for classloading reasons -->
 		<jar destfile="${temp.dir}/cli/railocli.jar" filesetmanifest="mergewithoutmain" level="9">
 			<manifest>
 				<attribute name="Main-Class" value="railocli.CLIMain" />
@@ -108,6 +124,7 @@
 			</manifest>
 			<fileset file="${temp.dir}/cli/libs.zip" />
 			<fileset file="${temp.dir}/cli/cfml.zip" />
+			<fileset file="${temp.dir}/cli/engine.zip" />
 			<fileset dir="${temp.dir}/cli/bin" />
 	        <zipfileset file="${temp.dir}/version" fullpath="version"/>
 		</jar>
@@ -142,23 +159,23 @@
 		<dependency groupId="oracle" artifactId="jre" version="${mvn.jre.version}" type="zip" classifier="linux64" />
 		<dependency groupId="oracle" artifactId="jre" version="${mvn.jre.version}" type="zip" classifier="darwin64" />
 		<zip destfile="${dist.dir}/cli/cli-jre-win32.zip">
-			<zipgroupfileset file="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-win32.zip"/>
+			<zipfileset prefix="jre" src="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-win32.zip"/>
 	        <fileset file="${dist.dir}/cli/railo.exe" />
 		</zip>
 		<zip destfile="${dist.dir}/cli/cli-jre-win64.zip">
-			<zipgroupfileset file="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-win64.zip"/>
+			<zipfileset prefix="jre" src="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-win64.zip"/>
 	        <fileset file="${dist.dir}/cli/railo.exe" />
 		</zip>
 		<zip destfile="${dist.dir}/cli/cli-jre-linux32.zip">
-			<zipgroupfileset file="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-linux32.zip"/>
+			<zipfileset prefix="jre" src="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-linux32.zip"/>
 	        <fileset file="${dist.dir}/cli/railo" />
 		</zip>
 		<zip destfile="${dist.dir}/cli/cli-jre-linux64.zip">
-			<zipgroupfileset file="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-linux64.zip"/>
+			<zipfileset prefix="jre" src="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-linux64.zip"/>
 	        <fileset file="${dist.dir}/cli/railo" />
 		</zip>
 		<zip destfile="${dist.dir}/cli/cli-jre-darwin64.zip">
-			<zipgroupfileset file="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-darwin64.zip"/>
+			<zipfileset prefix="jre" src="${maven.repo.local}/oracle/jre/${mvn.jre.version}/jre-${mvn.jre.version}-darwin64.zip"/>
 	        <fileset file="${dist.dir}/cli/railo" />
 		</zip>
 		<pom-and-deploy pomid="cli-jre.pom" packaging="pom" buildtype="${mvn.type}"
@@ -289,6 +306,19 @@ cd $reldir/build
 ONE JAR version.  Eats a *lot* of memory but doesn't write anything to disk
 **************************************************************************
 -->
+
+	<macrodef name="configure-railo-web">
+		<attribute name="railo-jar" default="${railo.lib.dir}/railo-jar-${railo.version}.jar" />
+		<attribute name="config-web" />
+		<attribute name="config-server" />
+		<attribute name="dump-cfc" />
+		<sequential>
+			<dependency groupId="org.getrailo" artifactId="railo.config" version="${railo.version.long}" dest="${temp.dir}/railoconfigs" unzip="true" type="zip" />
+			<property name="extracted" value="${temp.dir}/railoconfigs" />
+			<copy file="${extracted}/server.xml" tofile="@{config-server}" overwrite="true" />
+			<copy file="${extracted}/web.xml" tofile="@{config-web}" overwrite="true" />
+		</sequential>
+	</macrodef>
 
 	<macrodef name="one-jar-macro">
 		<attribute name="destfile" default="one-jar.jar" />
